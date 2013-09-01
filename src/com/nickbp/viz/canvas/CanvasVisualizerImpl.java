@@ -29,7 +29,10 @@ public class CanvasVisualizerImpl {
 	// what percent of the screen's width should the analyzer take up
 	private static final float ANALYZER_WIDTH_PCT = 0.15f;
 	private static final int VOICEPRINT_PX_WIDTH = 10;
-	private static final float MIN_LUM = 0.5f;
+	// cap on luminosity
+	private static final float MAX_LUM = 0.5f;
+	// set a curve on luminosity: exaggerate low values
+	private static final double LUM_EXPONENT = 0.85;
 
 	private final Paint analyzerPaint = new Paint();
 	private final Paint voiceprintPaint = new Paint();
@@ -75,8 +78,9 @@ public class CanvasVisualizerImpl {
 
 		{
 			float analyzerVal = data.timeSmoothedBuffer[datapt];
-			int analyzerColor = rgb.setFromHsl(
-				(1 / 3.f) * (1 - analyzerVal), 1, Math.min(MIN_LUM, analyzerVal)).toIntColor();
+			float analyzerLum = Math.min(MAX_LUM, (float)Math.pow(analyzerVal, LUM_EXPONENT));
+			int analyzerColor =
+				rgb.setFromHsl((1 / 3.f) * (1 - analyzerVal), 1, analyzerLum).toIntColor();
 			analyzerPaint.setColor(analyzerColor);
 			analyzerCanvas.drawRect(
 				analyzerLeft, top, analyzerLeft + (analyzerVal * analyzerWidth), bottom,
@@ -84,8 +88,9 @@ public class CanvasVisualizerImpl {
 		}
 		{
 			float voiceprintVal = data.buffer[datapt];
-			int voiceprintColor = rgb.setFromHsl(
-				(1 / 3.f) * (1 - voiceprintVal), 1, Math.min(MIN_LUM, voiceprintVal)).toIntColor();
+			float voiceprintLum = Math.min(MAX_LUM, (float)Math.pow(voiceprintVal, LUM_EXPONENT));
+			int voiceprintColor =
+				rgb.setFromHsl((1 / 3.f) * (1 - voiceprintVal), 1, voiceprintLum).toIntColor();
 			voiceprintPaint.setColor(voiceprintColor);
 			voiceprintBitmapScroller.drawRect(top, bottom, voiceprintPaint);
 		}
