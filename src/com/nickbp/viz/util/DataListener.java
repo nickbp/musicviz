@@ -18,7 +18,8 @@ package com.nickbp.viz.util;
 
 public interface DataListener {
 	/**
-	 * Accepts raw FFT data as produced by a {@link Visualizer}.
+	 * Accepts raw FFT data as produced by a {@link Visualizer}. Returns {@code true} if the data
+	 * was found to be non-zero, {@code false} otherwise.
 	 */
-	public void onReceive(byte[] fft);
+	public boolean onReceive(byte[] fft);
 }

@@ -35,6 +35,7 @@ public class VisualizerActivity extends Activity {
     private static final String TAG = "VisualizerActivity";
     
     private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
+    private static final int VIEWCHANGE_HIDE_DELAY_MILLIS = 100;
 
     private final AudioSource audioSource = new AudioSource();
     private final Handler hideHandler = new Handler();
@@ -47,16 +48,15 @@ public class VisualizerActivity extends Activity {
     	Log.d(TAG, "onCreate");
     	
     	setVolumeControlStream(AudioManager.STREAM_MUSIC);
-
-		// Keep screen on while we're visible
-		getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     	
     	vizView = new CanvasVisualizerView(this);
     	vizView.setInteractionListeners(new Runnable() {
 			@Override
 			public void run() {
 				// When someone touches within the app view, also notify our hider.
-	            setShowControls(!systemUiHider.isVisible());
+				if (systemUiHider.isVisible()) {
+					delayedControls("interactionListener", false, VIEWCHANGE_HIDE_DELAY_MILLIS);
+				}
 			}
 	    });
 		setContentView(vizView);
@@ -70,36 +70,20 @@ public class VisualizerActivity extends Activity {
 	                @Override
 	                @TargetApi(Build.VERSION_CODES.HONEYCOMB_MR2)
 	                public void onVisibilityChange(boolean visible) {
-	                    if (visible) {
-	                        // Ensure everything's visible, schedule a hide().
-	                    	setShowControls(true);
-	                        delayedHide(AUTO_HIDE_DELAY_MILLIS);
+	                    // Ensure everything's visible now, then schedule a hide.
+                    	if (visible && !systemUiHider.isVisible()) {
+                    		delayedControls("onVisibilityChange", true, 0);
+                    		delayedControls("onVisibilityChange", false, AUTO_HIDE_DELAY_MILLIS);
 	                    }
 	                }
 	            });
     }
     
-    /**
-     * Depending on the value of {@code show}, shows or hides system controls.
-     * These include the status bar at the top and back/home/appswitch at the bottom.
-     *  
-     * @param show If {@code true}, shows controls, otherwise hides them. 
-     */
-    private void setShowControls(boolean show) {
-    	if (show) {
-        	systemUiHider.show();
-    		getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-    	} else {
-        	systemUiHider.hide();
-    		getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-    	}
-    }
-    
     @Override
     protected void onStart() {
     	super.onStart();
-    	// Hide controls on startup
-		setShowControls(false);
+    	// Hide controls on startup/rotate
+        delayedControls("onStart", false, VIEWCHANGE_HIDE_DELAY_MILLIS);
         audioSource.start(vizView);
     }
     
@@ -116,18 +100,27 @@ public class VisualizerActivity extends Activity {
         // Trigger the initial hide() shortly after the activity has been
         // created, to briefly hint to the user that UI controls
         // are available.
-        delayedHide(100);
+        delayedControls("onPostCreate", false, VIEWCHANGE_HIDE_DELAY_MILLIS);
     }
 
     /**
-     * Schedules a call to hide system controls in [delay] milliseconds,
-     * canceling any previously scheduled calls.
+     * Schedules a call to show/hide system controls in [delay] milliseconds, canceling any
+     * previously scheduled calls. It's best to have all hide/show commands go through this queue,
+     * to avoid jerky control showing/hiding due to multiple conflicting simultaneous messages.
      */
-    private void delayedHide(int delayMillis) {
+    private void delayedControls(final String source, final boolean show, int delayMillis) {
+    	Log.v(TAG, "controls (" + source + "): delayMs=" + delayMillis + ", show=" + show);
     	Runnable hideRunnable = new Runnable() {
             @Override
             public void run() {
-            	setShowControls(false);
+        		Log.v(TAG, "controls (" + source + "): show=" + show);
+            	if (show) {
+                	systemUiHider.show();
+            		getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            	} else {
+                	systemUiHider.hide();
+            		getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            	}
             }
         };
         hideHandler.removeCallbacks(hideRunnable);

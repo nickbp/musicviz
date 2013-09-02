@@ -26,21 +26,30 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
 /**
- * The {@link View} for a {@link CanvasVisualizerImpl}.
+ * The {@link View} for a {@link HorizVisualizerImpl}.
  * Handles user interaction and forwarding audio data.
  */
 public class CanvasVisualizerView extends View implements DataListener {
-	private static final int SECONDS_BEFORE_NO_MUSIC_MESSAGE = 5;
+	private static final String TAG = "CanvasVisualizerView";
+	
+	/**
+	 * When empty audio data is being received, length of time to wait until displaying a "No Audio
+	 * Detected" message. The message is hidden once audio data comes back.
+	 */
+	private static final int SECONDS_BEFORE_NO_MUSIC_MESSAGE = 10;
 	private static final int TICKS_BEFORE_NO_MUSIC_MESSAGE =
-			SECONDS_BEFORE_NO_MUSIC_MESSAGE * (AudioSourceUtil.getMaxCaptureRateMilliHz() / 1000);
+		SECONDS_BEFORE_NO_MUSIC_MESSAGE * (AudioSourceUtil.getMaxCaptureRateMilliHz() / 1000);
 	
 	private final DataBuffers data = new DataBuffers();
-	private final CanvasVisualizerImpl visImpl = new CanvasVisualizerImpl();
-	private int ticksSinceDataLastFound = 0;
+	private final VisualizerSwapper vizSwapper = new VisualizerSwapper();
+	
+	// Fuzz factor: Avoid showing "no data" message when data's just not fully set up.
+	private int ticksSinceDataLastFound = TICKS_BEFORE_NO_MUSIC_MESSAGE - 10;
 	
 	public CanvasVisualizerView(Context context) {
 		super(context);
@@ -57,7 +66,7 @@ public class CanvasVisualizerView extends View implements DataListener {
         setOnClickListener(new View.OnClickListener() {
     		@Override
     		public void onClick(View v) {
-    			visImpl.mirror();
+    			vizSwapper.swap(data);
     			callOnInteraction.run();
     		}
 		});
@@ -65,7 +74,7 @@ public class CanvasVisualizerView extends View implements DataListener {
 			@Override
 			public boolean onTouch(View v, MotionEvent event) {
 				if (event.getAction() == MotionEvent.ACTION_UP) {
-					visImpl.mirror();
+	    			vizSwapper.swap(data);
 	    			callOnInteraction.run();
 					return true;
 				} else {
@@ -77,28 +86,37 @@ public class CanvasVisualizerView extends View implements DataListener {
 	}
 
 	@Override
-	public void onReceive(final byte[] fft) {
-		if (!data.updateData(fft)) {
-			++ticksSinceDataLastFound;
+	public boolean onReceive(final byte[] fft) {
+		boolean dataFound = data.updateData(fft);
+		if (dataFound) {
+			if (ticksSinceDataLastFound != 0) {
+				ticksSinceDataLastFound = 0;
+				Log.d(TAG, "Enabling keep screen on");
+				setKeepScreenOn(true);
+			}
 		} else {
-			ticksSinceDataLastFound = 0;
+			++ticksSinceDataLastFound;
 		}
 		invalidate();
+		return dataFound;
 	}
 	
 	@Override
 	public void onDraw(Canvas canvas) {
 		super.onDraw(canvas);
-		visImpl.render(data, canvas);
-		if (ticksSinceDataLastFound > TICKS_BEFORE_NO_MUSIC_MESSAGE) {
+		vizSwapper.render(data, canvas);
+		if (ticksSinceDataLastFound >= TICKS_BEFORE_NO_MUSIC_MESSAGE) {
 			renderNoAudioText(canvas);
+			if (ticksSinceDataLastFound == TICKS_BEFORE_NO_MUSIC_MESSAGE) {
+				Log.d(TAG, "Disabling keep screen on");
+				setKeepScreenOn(false);
+			}
 		}
 	}
 	
 	@Override
 	public void onSizeChanged(int w, int h, int oldw, int oldh) {
-		int viewLength = visImpl.onViewResize(w, h);
-		data.updateViewScaling(viewLength);
+		vizSwapper.updateSize(data, w, h);
 	}
 	
 	private void renderNoAudioText(Canvas canvas) {
@@ -121,5 +139,43 @@ public class CanvasVisualizerView extends View implements DataListener {
 		String message = getResources().getText(R.string.no_audio_message).toString();
 		canvas.drawText(message,
 				canvas.getWidth() / 2, canvas.getHeight() / 2 + headerBounds.height(), p);
+	}
+	
+	private static class VisualizerSwapper {
+		private CanvasVisualizerImpl viz;
+		//TODO save default across sessions
+		private boolean isHoriz = true;
+		private int curWidth = 0, curHeight = 0;
+		
+		public VisualizerSwapper() {
+			if (isHoriz) {
+				viz = new HorizVisualizerImpl();
+			} else {
+				viz = new VerticalVisualizerImpl();
+			}
+		}
+		
+		public void render(DataBuffers data, Canvas canvas) {
+			viz.render(data, canvas);
+		}
+		
+		public void updateSize(DataBuffers data, int w, int h) {
+			curWidth = w;
+			curHeight = h;
+			Log.d(TAG, "resize to w=" + curWidth + " h=" + curHeight);
+			int viewLength = viz.resize(curWidth, curHeight);
+			data.updateViewScaling(viewLength);
+		}
+		
+		public void swap(DataBuffers data) {
+			isHoriz = !isHoriz;
+			Log.d(TAG, "set horiz=" + isHoriz);
+			if (isHoriz) {
+				viz = new HorizVisualizerImpl();
+			} else {
+				viz = new VerticalVisualizerImpl();
+			}
+			updateSize(data, curWidth, curHeight);
+		}
 	}
 }

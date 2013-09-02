@@ -24,11 +24,11 @@ import android.util.Log;
 public class DataBuffers {
 	private static final String TAG = "DataBuffers";
 	
-	// How much bass should be exaggerated compared to treble. Higher value = more exaggeration.
-	private static final double SCALE = 0.8;
+	// How much lows/mids should be exaggerated compared to highs. Higher value = more exaggeration.
+	private static final double BASS_EXAGGERATION = 1.5;
 	
 	// How quickly the smooth data should be able to change. Smaller value = slower.
-	private static final float SMOOTHING_FALLOFF = 0.50f;
+	private static final float SMOOTHING_FALLOFF = 0.15f;
 	
 	/**
 	 * Immediate spectrum data, with no smoothing beyond simple cleanup from the original FFT.
@@ -91,11 +91,11 @@ public class DataBuffers {
 	 * Creates a buffer instance which expects raw FFT data of size equal to {@code customFftSize}.
 	 */
 	public DataBuffers(int customFftSize) {
+		// Skip the first two values, which are DC and Hz/2, respectively
 		// Non-'endcap' values are being given as real+imaginary pairs, which need to be recombined.
-		// The two 'endcap' values stay.
-		// eg 6 -> 2 + (4 / 2) -> 4 (or 6/2+1)
-		// eg 10 -> 2 + (8 / 2) -> 6 (or 10/2+1
-		int keptDataSize = customFftSize / 2 + 1; 
+		// eg 6 -> (4 / 2) -> 2 (or 6/2-1)
+		// eg 10 -> (8 / 2) -> 4 (or 10/2-1)
+		int keptDataSize = customFftSize / 2 - 1; 
 		buffer = new float[keptDataSize];
 		timeSmoothedBuffer = new float[keptDataSize];
 		bufferPxWidth = new float[keptDataSize];
@@ -111,20 +111,15 @@ public class DataBuffers {
 	 * by {@link #DataBuffers()} or {@link #DataBuffers(int)}.
 	 */
 	public boolean updateData(byte[] fft) {
-        int expectfft = (buffer.length - 1) * 2; 
+        int expectfft = (buffer.length + 1) * 2; 
         if (expectfft != fft.length) {
             throw new IllegalStateException(
             		"Data size=" + fft.length + " doesn't match expected size=" + expectfft);
 		}
 		
-		// first, save the endcaps, which are at 0 and 1
-		// oddity with fft data: the value at fft[1] should actually be at the BACK of fft.
-		buffer[0] = Math.abs(fft[0]) / 127.f;
-		buffer[buffer.length - 1] = Math.abs(fft[1]) / 127.f;
-		
-		// then, combine and store the non-endcap real+imaginary pairs
+		// combine and store the non-endcap real+imaginary pairs (pairwise from idx 2 onwards)
 		boolean valueFound = false;
-		for (int ffti = 2, bufferi = 1; ffti < fft.length; ffti += 2, ++bufferi) {
+		for (int ffti = 2, bufferi = 0; ffti < fft.length; ffti += 2, ++bufferi) {
 			// fft[ffti] is real, fft[ffti+1] is imaginary
 			int key = (Math.abs(fft[ffti]) << 7) + Math.abs(fft[ffti + 1]);
 			if (key != 0) {
@@ -164,9 +159,9 @@ public class DataBuffers {
         // Scaled formula:
 		//   pxlen = (dataLen - dataI)^scale * viewLen * (scale + 1) / dataLen^(scale + 1)
 		final int bufferLength = buffer.length;
-        double multiplier = viewLength * (SCALE + 1) / Math.pow(bufferLength, SCALE + 1);
+        double multiplier = viewLength * (BASS_EXAGGERATION + 1) / Math.pow(bufferLength, BASS_EXAGGERATION + 1);
         for (int i = 0; i < bufferLength; ++i) {
-            bufferPxWidth[i] = (float)(Math.pow(bufferLength - i, SCALE) * multiplier);
+            bufferPxWidth[i] = (float)(Math.pow(bufferLength - i, BASS_EXAGGERATION) * multiplier);
         }
 		
 		this.viewLength = viewLength;
