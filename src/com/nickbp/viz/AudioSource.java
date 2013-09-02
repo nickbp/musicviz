@@ -26,7 +26,8 @@ import android.util.Log;
  * Produces audio spectrum data from the system, suitable for use by visualizations.
  */
 public class AudioSource {
-	private static final String TAG = "DataSource";
+	private static final String TAG = "AudioSource";
+	// The system audio session id:
 	private static final int VIZ_SESSION = 0;
 	private final Visualizer audioSource;
 	
@@ -72,12 +73,12 @@ public class AudioSource {
 		if (audioSource.getEnabled()) {
 			return;
 		}
-		int largestSize = AudioSourceUtil.getLargestAvailableDataSize();
+		int largestSize = AudioSourceUtil.getMaxCaptureSize();
 		Log.d(TAG, "Using captureSize " + largestSize);
 		if (audioSource.setCaptureSize(largestSize) != Visualizer.SUCCESS) {
 			throw new IllegalStateException("Bad capture size: " + largestSize);
 		}
-		int maxMilliHz = Visualizer.getMaxCaptureRate();
+		int maxMilliHz = AudioSourceUtil.getMaxCaptureRateMilliHz();
 		Log.d(TAG, "Starting viz with hz=" + maxMilliHz / 1000);
 		audioSource.setDataCaptureListener(new PassthruListener(out), maxMilliHz, false, true);
 		audioSource.setEnabled(true);

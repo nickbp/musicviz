@@ -29,7 +29,7 @@ public class AudioSourceUtil {
 	 * Returns the largest available data width for system audio capture, suitable for passing to
 	 * {@link Visualizer#setCaptureSize(int)}.
 	 */
-	public static int getLargestAvailableDataSize() {
+	public static int getMaxCaptureSize() {
 		int[] range = Visualizer.getCaptureSizeRange();
 		if (range.length != 2) {
 			throw new IllegalStateException(
@@ -58,5 +58,14 @@ public class AudioSourceUtil {
 					"Unable to find a base two integer within [" + min + ", " + max + "]");
 		}
 		return largest;
+	}
+	
+	/**
+	 * Returns the maximum rate, in millihertz, that system audio may be captured. 
+	 */
+	public static int getMaxCaptureRateMilliHz() {
+		int maxRate = Visualizer.getMaxCaptureRate();
+		Log.v(TAG, "Max capture rate: " + maxRate + " milliHz");
+		return Visualizer.getMaxCaptureRate();
 	}
 }

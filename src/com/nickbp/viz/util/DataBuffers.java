@@ -81,10 +81,10 @@ public class DataBuffers {
 	
 	/**
 	 * Creates a buffer instance which expects raw FFT data of size equal to
-	 * {@link AudioSourceUtil#getLargestAvailableDataSize()}.
+	 * {@link AudioSourceUtil#getMaxCaptureSize()}.
 	 */
 	public DataBuffers() {
-		this(AudioSourceUtil.getLargestAvailableDataSize());
+		this(AudioSourceUtil.getMaxCaptureSize());
 	}
 	
 	/**
@@ -104,13 +104,13 @@ public class DataBuffers {
 
 	/**
 	 * Processes the provided FFT data and updates {@link #buffer} and {@link #timeSmoothedBuffer}
-	 * with it.
+	 * with it. Returns {@code true} if the passed FFT data contains any non-zero values.
 	 * 
 	 * @param fft The raw FFT data of the format produced by a {@link Visualizer}.
 	 * @throws IllegalStateException if the provided buffer doesn't match the expected size provided
 	 * by {@link #DataBuffers()} or {@link #DataBuffers(int)}.
 	 */
-	public void updateData(byte[] fft) {
+	public boolean updateData(byte[] fft) {
         int expectfft = (buffer.length - 1) * 2; 
         if (expectfft != fft.length) {
             throw new IllegalStateException(
@@ -123,9 +123,14 @@ public class DataBuffers {
 		buffer[buffer.length - 1] = Math.abs(fft[1]) / 127.f;
 		
 		// then, combine and store the non-endcap real+imaginary pairs
+		boolean valueFound = false;
 		for (int ffti = 2, bufferi = 1; ffti < fft.length; ffti += 2, ++bufferi) {
 			// fft[ffti] is real, fft[ffti+1] is imaginary
 			int key = (Math.abs(fft[ffti]) << 7) + Math.abs(fft[ffti + 1]);
+			if (key != 0) {
+				// Found a non-zero value.
+				valueFound = true;
+			}
 			buffer[bufferi] = PRECALCULATED_MAGNITUDE_BUFFER[key];
 		}
 		
@@ -138,6 +143,7 @@ public class DataBuffers {
 			// too jittery.
 	        timeSmoothedBuffer[i] = Math.max(buffer[i], timeSmoothedBuffer[i] - SMOOTHING_FALLOFF);
 		}
+		return valueFound;
 	}
 	
 	/**

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Music Viz</string>
+    <string name="no_audio_header">No Audio Detected</string>
+    <string name="no_audio_message">Please switch to a music player and play something nice.</string>
 </resources>
