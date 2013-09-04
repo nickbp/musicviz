@@ -25,57 +25,38 @@ public class DataBuffers {
 	private static final String TAG = "DataBuffers";
 	
 	// How much lows/mids should be exaggerated compared to highs. Higher value = more exaggeration.
-	private static final double BASS_EXAGGERATION = 1.5;
+	private static final double VIEW_SCALING_BASS_EXAGGERATION = 1.5;
 	
-	// How quickly the smooth data should be able to change. Smaller value = slower.
-	private static final float SMOOTHING_FALLOFF = 0.15f;
-	
+	// How quickly the smoothed data should be able to change. Smaller value = slower.
+	private static final float TIME_SMOOTHING_FALLOFF = 0.15f;
+
 	/**
 	 * Immediate spectrum data, with no smoothing beyond simple cleanup from the original FFT.
 	 * Each value is an amplitude from 0.0f to 1.0f (inclusive).
 	 */
-	public final float[] buffer;
+	public final int[] valCacheKeyBuffer;
 	
 	/**
 	 * Smoothed spectrum data, where values change more gradually with an eye to smooth movement
-	 * over time. Otherwise the same type of data, with the same dimensions, as {@link buffer}.
+	 * over time. Otherwise the same type of data, with the same dimensions, as
+	 * {@link #valCacheKeyBuffer}.
 	 */
-	public final float[] timeSmoothedBuffer;
+	public final float[] timeSmoothedValBuffer;
 	
 	/**
 	 * This buffer is different from the two spectrum buffers. This is effectively a lookup table
 	 * which provides scaling of spectrum data to the current display. This depends on the value
 	 * last passed to {@link #updateViewScaling(int)}, which recomputes this table.
 	 * 
-	 * For each data point in {@link #buffer} and {@link #timeSmoothedBuffer}, this gives the
-	 * display width, in fractional pixels, that that data point should be displayed as.
+	 * For each data point in {@link #valCacheKeyBuffer} and {@link #timeSmoothedValBuffer}, this
+	 * gives the display width, in fractional pixels, that that data point should be displayed as.
 	 * For example, if bufferPxWidth[0] = 5.0f, then that means buffer[0] and timeSmoothedBuffer[0]
 	 * could be shown on the screen as 5 pixels wide.
 	 * 
-	 * As such, this table has the same dimensions as {@link #buffer} and
-	 * {@link #timeSmoothedBuffer}.
+	 * As such, this table has the same dimensions as {@link #valCacheKeyBuffer} and
+	 * {@link #timeSmoothedValBuffer}.
 	 */
 	public final float[] bufferPxWidth;
-
-	/**
-	 * This is a lovely precalculated table of FFT->spectrum values. Each FFT data point consists of
-	 * an imaginary byte and a real byte. The magnitude of the point is calculated as 
-	 * {@code magnitude = sqrt(real^2 + imaginary^2)}.
-	 * 
-	 * This table takes up around 16K floats * (sizeof(float) = 32b) = 64KByte.
-	 */
-	private static final float[] PRECALCULATED_MAGNITUDE_BUFFER =
-		new float[16513];//(128 << 7) + 128 + 1
-	static {
-		final double maxCombinedVal = Math.sqrt(2 * (127 * 127));
-		for (int i = 0; i <= 128; ++i) {
-			for (int j = 0; j <= 128; ++j) {
-				int key = (i << 7) + j;
-				PRECALCULATED_MAGNITUDE_BUFFER[key] =
-				    (float)(Math.sqrt((i * i) + (j * j)) / maxCombinedVal);
-			}
-		}
-	}
 	
 	private int viewLength = -1;
 	
@@ -95,23 +76,23 @@ public class DataBuffers {
 		// Non-'endcap' values are being given as real+imaginary pairs, which need to be recombined.
 		// eg 6 -> (4 / 2) -> 2 (or 6/2-1)
 		// eg 10 -> (8 / 2) -> 4 (or 10/2-1)
-		int keptDataSize = customFftSize / 2 - 1; 
-		buffer = new float[keptDataSize];
-		timeSmoothedBuffer = new float[keptDataSize];
+		int keptDataSize = customFftSize / 2 - 1;
+		valCacheKeyBuffer = new int[keptDataSize];
+		timeSmoothedValBuffer = new float[keptDataSize];
 		bufferPxWidth = new float[keptDataSize];
-		
 	}
 
 	/**
-	 * Processes the provided FFT data and updates {@link #buffer} and {@link #timeSmoothedBuffer}
-	 * with it. Returns {@code true} if the passed FFT data contains any non-zero values.
+	 * Processes the provided FFT data and updates {@link #valCacheKeyBuffer} and
+	 * {@link #timeSmoothedValBuffer} with it. Returns {@code true} if the passed FFT data contains
+	 * any non-zero values.
 	 * 
 	 * @param fft The raw FFT data of the format produced by a {@link Visualizer}.
 	 * @throws IllegalStateException if the provided buffer doesn't match the expected size provided
 	 * by {@link #DataBuffers()} or {@link #DataBuffers(int)}.
 	 */
 	public boolean updateData(byte[] fft) {
-        int expectfft = (buffer.length + 1) * 2; 
+        int expectfft = (valCacheKeyBuffer.length + 1) * 2; 
         if (expectfft != fft.length) {
             throw new IllegalStateException(
             		"Data size=" + fft.length + " doesn't match expected size=" + expectfft);
@@ -121,22 +102,19 @@ public class DataBuffers {
 		boolean valueFound = false;
 		for (int ffti = 2, bufferi = 0; ffti < fft.length; ffti += 2, ++bufferi) {
 			// fft[ffti] is real, fft[ffti+1] is imaginary
-			int key = (Math.abs(fft[ffti]) << 7) + Math.abs(fft[ffti + 1]);
+			int key = PrecalcColorUtil.fftToKey(fft[ffti], fft[ffti + 1]);
 			if (key != 0) {
 				// Found a non-zero value.
 				valueFound = true;
 			}
-			buffer[bufferi] = PRECALCULATED_MAGNITUDE_BUFFER[key];
-		}
-		
-		// update smoothed values using new raw values
-		for (int i = 0; i < buffer.length; ++i) {
-			//fft range is [-128,127], where val is abs(fft)
-			//buffer[i] = Math.abs(fft[i]) / 128.f;
-			// Go with a linear decrease in the analyzer - avoids the appearance of
-			// disconnectedness between analyzer and voiceprint, without making the analyzer look
-			// too jittery.
-	        timeSmoothedBuffer[i] = Math.max(buffer[i], timeSmoothedBuffer[i] - SMOOTHING_FALLOFF);
+			valCacheKeyBuffer[bufferi] = key;
+
+			// Update smoothed value using new raw value. Go with a linear decrease in the analyzer,
+			// this avoids the appearance of disconnectedness between analyzer and voiceprint,
+			// without making the analyzer look too jittery.
+	        timeSmoothedValBuffer[bufferi] = Math.max(
+	        	PrecalcColorUtil.PRECALCULATED_MAGNITUDE_BUFFER[key],
+	        	timeSmoothedValBuffer[bufferi] - TIME_SMOOTHING_FALLOFF);
 		}
 		return valueFound;
 	}
@@ -158,10 +136,10 @@ public class DataBuffers {
 		//   sum(pxlen) = dataLen / (scale + 1)
         // Scaled formula:
 		//   pxlen = (dataLen - dataI)^scale * viewLen * (scale + 1) / dataLen^(scale + 1)
-		final int bufferLength = buffer.length;
-        double multiplier = viewLength * (BASS_EXAGGERATION + 1) / Math.pow(bufferLength, BASS_EXAGGERATION + 1);
+		final int bufferLength = valCacheKeyBuffer.length;
+        double multiplier = viewLength * (VIEW_SCALING_BASS_EXAGGERATION + 1) / Math.pow(bufferLength, VIEW_SCALING_BASS_EXAGGERATION + 1);
         for (int i = 0; i < bufferLength; ++i) {
-            bufferPxWidth[i] = (float)(Math.pow(bufferLength - i, BASS_EXAGGERATION) * multiplier);
+            bufferPxWidth[i] = (float)(Math.pow(bufferLength - i, VIEW_SCALING_BASS_EXAGGERATION) * multiplier);
         }
 		
 		this.viewLength = viewLength;

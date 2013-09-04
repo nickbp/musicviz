@@ -17,7 +17,7 @@
 package com.nickbp.viz.canvas;
 
 import com.nickbp.viz.util.DataBuffers;
-import com.nickbp.viz.util.RgbColor;
+import com.nickbp.viz.util.PrecalcColorUtil;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -29,10 +29,6 @@ public class VerticalVisualizerImpl implements CanvasVisualizerImpl {
 	// what percent of the screen's width should the analyzer take up
 	private static final float ANALYZER_HEIGHT_PCT = 0.25f;
 	private static final int VOICEPRINT_PX_WIDTH = 5;
-	// cap on luminosity
-	private static final float MAX_LUM = 0.5f;
-	// set a curve on luminosity: exaggerate low values
-	private static final double LUM_EXPONENT = 0.85;
 
 	private final Paint analyzerPaint = new Paint();
 	private final Paint voiceprintPaint = new Paint();
@@ -56,35 +52,28 @@ public class VerticalVisualizerImpl implements CanvasVisualizerImpl {
         analyzerPaint.setColor(Color.BLACK);
         canvas.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), analyzerPaint);
 
-        RgbColor rgb = new RgbColor();
         float left = 0;
-	    for (int datapt = 0; datapt < data.buffer.length; ++datapt) {
-	    	left = writePx(canvas, data, datapt, rgb, left);
+	    for (int datapt = 0; datapt < data.valCacheKeyBuffer.length; ++datapt) {
+	    	left = writePx(canvas, data, datapt, left);
 	    }
 
         voiceprintBitmapScroller.renderAndScroll(canvas);
 	}
 	
-	private float writePx(Canvas analyzerCanvas, DataBuffers data, int datapt, RgbColor rgb, float left) {
+	private float writePx(Canvas analyzerCanvas, DataBuffers data, int datapt, float left) {
 		float right = left + data.bufferPxWidth[datapt];
 
-		{
-			float analyzerVal = data.timeSmoothedBuffer[datapt];
-			float analyzerLum = Math.min(MAX_LUM, (float)Math.pow(analyzerVal, LUM_EXPONENT));
-			int analyzerColor =
-				rgb.setFromHsl((1 / 3.f) * (1 - analyzerVal), 1, analyzerLum).toIntColor();
-			analyzerPaint.setColor(analyzerColor);
-			analyzerCanvas.drawRect(left, analyzerHeight - (analyzerVal * analyzerHeight), right,
-				analyzerHeight, analyzerPaint);
-		}
-		{
-			float voiceprintVal = data.buffer[datapt];
-			float voiceprintLum = Math.min(MAX_LUM, (float)Math.pow(voiceprintVal, LUM_EXPONENT));
-			int voiceprintColor =
-				rgb.setFromHsl((1 / 3.f) * (1 - voiceprintVal), 1, voiceprintLum).toIntColor();
-			voiceprintPaint.setColor(voiceprintColor);
-			voiceprintBitmapScroller.drawRect(left, right, voiceprintPaint);
-		}
+		float uncacheableAnalyzerVal = data.timeSmoothedValBuffer[datapt];
+		int cacheKey = data.valCacheKeyBuffer[datapt];
+		
+		// cpu shortcut: just reuse the luminosity that we're going to be using for the voiceprint
+		analyzerPaint.setColor(PrecalcColorUtil.valueToColor(uncacheableAnalyzerVal,
+				PrecalcColorUtil.PRECALCULATED_LUMINOSITY_BUFFER[cacheKey]));
+		analyzerCanvas.drawRect(left, analyzerHeight - (uncacheableAnalyzerVal * analyzerHeight),
+				right,analyzerHeight, analyzerPaint);
+		
+		voiceprintPaint.setColor(PrecalcColorUtil.PRECALCULATED_COLOR_BUFFER[cacheKey]);
+		voiceprintBitmapScroller.drawRect(left, right, voiceprintPaint);
 
 		// shift rightwards (to the new left):
         return right;
