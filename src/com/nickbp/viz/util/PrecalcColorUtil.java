@@ -54,10 +54,9 @@ public class PrecalcColorUtil {
 		for (int i = 0; i <= 128; ++i) {
 			for (int j = 0; j <= 128; ++j) {
 				int key = (i << 7) + j;
-				double value = Math.sqrt((i * i) + (j * j)) / maxCombinedVal;
-				PRECALCULATED_MAGNITUDE_BUFFER[key] = (float)value;
-				PRECALCULATED_LUMINOSITY_BUFFER[key] =
-					Math.min(MAX_LUM, (float)Math.pow(value, LUM_EXPONENT));
+				float value = (float)(Math.sqrt((i * i) + (j * j)) / maxCombinedVal);
+				PRECALCULATED_MAGNITUDE_BUFFER[key] = value;
+				PRECALCULATED_LUMINOSITY_BUFFER[key] = valueToLum(value);
 				PRECALCULATED_COLOR_BUFFER[key] = valueToColor(
 					PRECALCULATED_MAGNITUDE_BUFFER[key], PRECALCULATED_LUMINOSITY_BUFFER[key]);
 			}
@@ -68,10 +67,17 @@ public class PrecalcColorUtil {
 	}
 	
 	/**
-	 * Given an FFT pair of values, returns the buffer key for those values.
+	 * Given a raw FFT real+imaginary pair, returns the buffer key for the pair.
 	 */
 	public static int fftToKey(byte real, byte imaginary) {
 		return (Math.abs(real) << 7) + Math.abs(imaginary);
+	}
+	
+	/**
+	 * Given an FFT magnitude, returns an appropriate luminosity value.
+	 */
+	public static float valueToLum(float value) {
+		return Math.min(MAX_LUM, (float)Math.pow(value, LUM_EXPONENT));
 	}
 	
 	// HSL math
@@ -82,7 +88,8 @@ public class PrecalcColorUtil {
 	private static final float TWO_THIRDS = 2 / 3.f;
 	
 	/**
-	 * Given a calculated value and a desired luminosity for that value, returns a color code.
+	 * Given a calculated value and a desired luminosity for that value, returns an Android color
+	 * code.
 	 */
 	public static int valueToColor(float value, float lum) {
 		// Shortcut: S is always 1

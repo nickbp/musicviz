@@ -67,9 +67,9 @@ public class HorizVisualizerImpl implements CanvasVisualizerImpl {
 		float uncacheableAnalyzerVal = data.timeSmoothedValBuffer[datapt];
 		int cacheKey = data.valCacheKeyBuffer[datapt];
 
-		// cpu shortcut: just reuse the luminosity that we're going to be using for the voiceprint
-		analyzerPaint.setColor(PrecalcColorUtil.valueToColor(uncacheableAnalyzerVal,
-			PrecalcColorUtil.PRECALCULATED_LUMINOSITY_BUFFER[cacheKey]));
+		analyzerPaint.setColor(
+			PrecalcColorUtil.valueToColor(uncacheableAnalyzerVal,
+			PrecalcColorUtil.valueToLum(uncacheableAnalyzerVal)));
 		analyzerCanvas.drawRect(analyzerLeft, top,
 			analyzerLeft + (uncacheableAnalyzerVal * analyzerWidth), bottom, analyzerPaint);
 		
