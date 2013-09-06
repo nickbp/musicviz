@@ -31,23 +31,20 @@ public class PrecalcColorUtil {
 	 * 
 	 * Each table takes up around 16K floats * (sizeof(float) = 32b) = 64KByte.
 	 */
-	private static int BUFFER_SIZE = 16513;//(128 << 7) + 128 + 1
+	private static int KEY_TABLE_SIZE = 16513;//(128 << 7) + 128 + 1
 	
 	/**
 	 * Each FFT data point consists of an imaginary byte and a real byte. The magnitude of the
 	 * point is calculated as {@code magnitude = sqrt(real^2 + imaginary^2)}.
 	 */
-	public static final float[] PRECALCULATED_MAGNITUDE_BUFFER = new float[BUFFER_SIZE];
+	private static final float[] FFTKEY_TO_MAGNITUDE_TABLE = new float[KEY_TABLE_SIZE];
 	
 	/**
-	 * The luminosity to be used for a given magnitude is directly derived from it.
+	 * Generate nearby colors for magnitude values between 0.0f and 1.0f (inclusive). The size of
+	 * this table is inversely related to the size of the approximation error. Lets arbitrarily
+	 * reuse the size of the other table for this one.
 	 */
-	public static final float[] PRECALCULATED_LUMINOSITY_BUFFER = new float[BUFFER_SIZE];
-	
-	/**
-	 * And finally, the color code is directly derived from the magnitude and the luminosity.
-	 */
-	public static final int[] PRECALCULATED_COLOR_BUFFER = new int[BUFFER_SIZE];
+	private static final int[] FFTMAGNITUDE_TO_COLOR_TABLE = new int[KEY_TABLE_SIZE + 1];
 	
 	static {
 		final double maxCombinedVal = Math.sqrt(2 * (127 * 127));
@@ -55,29 +52,36 @@ public class PrecalcColorUtil {
 			for (int j = 0; j <= 128; ++j) {
 				int key = (i << 7) + j;
 				float value = (float)(Math.sqrt((i * i) + (j * j)) / maxCombinedVal);
-				PRECALCULATED_MAGNITUDE_BUFFER[key] = value;
-				PRECALCULATED_LUMINOSITY_BUFFER[key] = valueToLum(value);
-				PRECALCULATED_COLOR_BUFFER[key] = valueToColor(
-					PRECALCULATED_MAGNITUDE_BUFFER[key], PRECALCULATED_LUMINOSITY_BUFFER[key]);
+				FFTKEY_TO_MAGNITUDE_TABLE[key] = value;
 			}
+		}
+		for (int i = 0; i < FFTMAGNITUDE_TO_COLOR_TABLE.length; ++i) {
+			float magnitude = i / (float)KEY_TABLE_SIZE;
+			FFTMAGNITUDE_TO_COLOR_TABLE[i] = valueToColor(magnitude,
+				Math.min(MAX_LUM, (float)Math.pow(magnitude, LUM_EXPONENT)));
 		}
 	}
 	
 	private PrecalcColorUtil() {
 	}
 	
-	/**
-	 * Given a raw FFT real+imaginary pair, returns the buffer key for the pair.
-	 */
 	public static int fftToKey(byte real, byte imaginary) {
 		return (Math.abs(real) << 7) + Math.abs(imaginary);
 	}
 	
 	/**
-	 * Given an FFT magnitude, returns an appropriate luminosity value.
+	 * Given a raw FFT real+imaginary pair, returns the buffer key, suitable for
+	 * {@link #FFTKEY_TO_MAGNITUDE_TABLE}, for the pair.
 	 */
-	public static float valueToLum(float value) {
-		return Math.min(MAX_LUM, (float)Math.pow(value, LUM_EXPONENT));
+	public static float keyToMagnitude(int key) {
+		return FFTKEY_TO_MAGNITUDE_TABLE[key];
+	}
+	
+	/**
+	 * Given an FFT magnitude, returns a nearby color for that magnitude. 
+	 */
+	public static int magnitudeToColor(float magnitude) {
+		return FFTMAGNITUDE_TO_COLOR_TABLE[(int)(magnitude * KEY_TABLE_SIZE)];
 	}
 	
 	// HSL math
@@ -89,10 +93,9 @@ public class PrecalcColorUtil {
 	
 	/**
 	 * Given a calculated value and a desired luminosity for that value, returns an Android color
-	 * code.
+	 * code. This is a reduced version of the normal HSL->RGB algorithm; it always has S=1.
 	 */
-	public static int valueToColor(float value, float lum) {
-		// Shortcut: S is always 1
+	private static int valueToColor(float value, float lum) {
 		float H = ONE_THIRD * (1 - value);
 		lum *= 2;
 		if (lum < 1) {

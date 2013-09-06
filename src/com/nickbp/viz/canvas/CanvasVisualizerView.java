@@ -19,6 +19,7 @@ package com.nickbp.viz.canvas;
 import com.nickbp.viz.R;
 import com.nickbp.viz.util.AudioSourceUtil;
 import com.nickbp.viz.util.DataBuffers;
+import com.nickbp.viz.util.DataLengths;
 import com.nickbp.viz.util.DataListener;
 
 import android.content.Context;
@@ -46,6 +47,7 @@ public class CanvasVisualizerView extends View implements DataListener {
 		SECONDS_BEFORE_NO_MUSIC_MESSAGE * (AudioSourceUtil.getMaxCaptureRateMilliHz() / 1000);
 	
 	private final DataBuffers data = new DataBuffers();
+	private final DataLengths lengths = new DataLengths();
 	private final VisualizerSwapper vizSwapper = new VisualizerSwapper();
 	
 	// Fuzz factor: Avoid showing "no data" message when data's just not fully set up.
@@ -66,7 +68,7 @@ public class CanvasVisualizerView extends View implements DataListener {
         setOnClickListener(new View.OnClickListener() {
     		@Override
     		public void onClick(View v) {
-    			vizSwapper.swap(data);
+    			vizSwapper.swap(lengths);
     			callOnInteraction.run();
     		}
 		});
@@ -74,7 +76,7 @@ public class CanvasVisualizerView extends View implements DataListener {
 			@Override
 			public boolean onTouch(View v, MotionEvent event) {
 				if (event.getAction() == MotionEvent.ACTION_UP) {
-	    			vizSwapper.swap(data);
+	    			vizSwapper.swap(lengths);
 	    			callOnInteraction.run();
 					return true;
 				} else {
@@ -104,7 +106,7 @@ public class CanvasVisualizerView extends View implements DataListener {
 	@Override
 	public void onDraw(Canvas canvas) {
 		super.onDraw(canvas);
-		vizSwapper.render(data, canvas);
+		vizSwapper.render(data, lengths, canvas);
 		if (ticksSinceDataLastFound >= TICKS_BEFORE_NO_MUSIC_MESSAGE) {
 			renderNoAudioText(canvas);
 			if (ticksSinceDataLastFound == TICKS_BEFORE_NO_MUSIC_MESSAGE) {
@@ -116,7 +118,7 @@ public class CanvasVisualizerView extends View implements DataListener {
 	
 	@Override
 	public void onSizeChanged(int w, int h, int oldw, int oldh) {
-		vizSwapper.updateSize(data, w, h);
+		vizSwapper.updateSize(lengths, w, h);
 	}
 	
 	private void renderNoAudioText(Canvas canvas) {
@@ -155,19 +157,19 @@ public class CanvasVisualizerView extends View implements DataListener {
 			}
 		}
 		
-		public void render(DataBuffers data, Canvas canvas) {
-			viz.render(data, canvas);
+		public void render(DataBuffers data, DataLengths lengths, Canvas canvas) {
+			viz.render(data, lengths, canvas);
 		}
 		
-		public void updateSize(DataBuffers data, int w, int h) {
+		public void updateSize(DataLengths lengths, int w, int h) {
 			curWidth = w;
 			curHeight = h;
 			Log.d(TAG, "resize to w=" + curWidth + " h=" + curHeight);
 			int viewLength = viz.resize(curWidth, curHeight);
-			data.updateViewScaling(viewLength);
+			lengths.updateViewScaling(viewLength);
 		}
 		
-		public void swap(DataBuffers data) {
+		public void swap(DataLengths lengths) {
 			isHoriz = !isHoriz;
 			Log.d(TAG, "set horiz=" + isHoriz);
 			if (isHoriz) {
@@ -175,7 +177,7 @@ public class CanvasVisualizerView extends View implements DataListener {
 			} else {
 				viz = new VerticalVisualizerImpl();
 			}
-			updateSize(data, curWidth, curHeight);
+			updateSize(lengths, curWidth, curHeight);
 		}
 	}
 }

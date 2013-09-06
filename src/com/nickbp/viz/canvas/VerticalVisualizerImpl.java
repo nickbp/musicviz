@@ -17,6 +17,7 @@
 package com.nickbp.viz.canvas;
 
 import com.nickbp.viz.util.DataBuffers;
+import com.nickbp.viz.util.DataLengths;
 import com.nickbp.viz.util.PrecalcColorUtil;
 
 import android.graphics.Canvas;
@@ -30,50 +31,44 @@ public class VerticalVisualizerImpl implements CanvasVisualizerImpl {
 	private static final float ANALYZER_HEIGHT_PCT = 0.25f;
 	private static final int VOICEPRINT_PX_WIDTH = 5;
 
-	private final Paint analyzerPaint = new Paint();
-	private final Paint voiceprintPaint = new Paint();
+	private final Paint fillPaint = new Paint();
 	private int analyzerHeight;
 	private VerticalBitmapScroller voiceprintBitmapScroller;
 
 	public VerticalVisualizerImpl() {
-		analyzerPaint.setAntiAlias(false);
-		analyzerPaint.setStyle(Paint.Style.FILL);
-		voiceprintPaint.setAntiAlias(false);
-		voiceprintPaint.setStyle(Paint.Style.FILL);
+		fillPaint.setAntiAlias(false);
+		fillPaint.setStyle(Paint.Style.FILL);
 	}
 	
 	/**
 	 * Given the provided new {@code data}, renders the visualization's current state onto the
 	 * provided {@code canvas}.
 	 */
-	public void render(DataBuffers data, Canvas canvas) {
+	public void render(DataBuffers data, DataLengths lengths, Canvas canvas) {
 		//COORDINATE SYSTEM: 0,0 is TOP LEFT. SIZES ARE ALWAYS IN PX (no scaling/coord transforms)
         
-        analyzerPaint.setColor(Color.BLACK);
-        canvas.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), analyzerPaint);
+		fillPaint.setColor(Color.BLACK);
+        canvas.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), fillPaint);
 
         float left = 0;
-	    for (int datapt = 0; datapt < data.valCacheKeyBuffer.length; ++datapt) {
-	    	left = writePx(canvas, data, datapt, left);
+	    for (int datapt = 0; datapt < data.valBuffer.length; ++datapt) {
+	    	left = writePx(canvas, data, lengths, datapt, left);
 	    }
 
         voiceprintBitmapScroller.renderAndScroll(canvas);
 	}
 	
-	private float writePx(Canvas analyzerCanvas, DataBuffers data, int datapt, float left) {
-		float right = left + data.bufferPxWidth[datapt];
+	private float writePx(Canvas analyzerCanvas, DataBuffers data, DataLengths lengths,
+			int datapt, float left) {
+		float right = left + lengths.bufferPxWidth[datapt];
 
-		float uncacheableAnalyzerVal = data.timeSmoothedValBuffer[datapt];
-		int cacheKey = data.valCacheKeyBuffer[datapt];
-
-		analyzerPaint.setColor(
-			PrecalcColorUtil.valueToColor(uncacheableAnalyzerVal,
-			PrecalcColorUtil.valueToLum(uncacheableAnalyzerVal)));
-		analyzerCanvas.drawRect(left, analyzerHeight - (uncacheableAnalyzerVal * analyzerHeight),
-				right,analyzerHeight, analyzerPaint);
+		float analyzerVal = data.timeSmoothedValBuffer[datapt];
+		fillPaint.setColor(PrecalcColorUtil.magnitudeToColor(analyzerVal));
+		analyzerCanvas.drawRect(left, analyzerHeight - (analyzerVal * analyzerHeight),
+			right, analyzerHeight, fillPaint);
 		
-		voiceprintPaint.setColor(PrecalcColorUtil.PRECALCULATED_COLOR_BUFFER[cacheKey]);
-		voiceprintBitmapScroller.drawRect(left, right, voiceprintPaint);
+		fillPaint.setColor(PrecalcColorUtil.magnitudeToColor(data.valBuffer[datapt]));
+		voiceprintBitmapScroller.drawRect(left, right, fillPaint);
 
 		// shift rightwards (to the new left):
         return right;
