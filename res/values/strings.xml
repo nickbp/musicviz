@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Music Viz</string>
-    <string name="no_audio_header">No Audio Detected</string>
-    <string name="no_audio_message">Please switch to a music player and play something nice.</string>
+    <string name="player_input_header">Visualizing System Audio</string>
+    <string name="player_input_message"></string>
+    <string name="microphone_input_header">Visualizing Microphone</string>
+    <string name="microphone_input_message">Try playing some music!</string>
 </resources>

@@ -31,7 +31,7 @@ public class PrecalcColorUtil {
 	 * 
 	 * Each table takes up around 16K floats * (sizeof(float) = 32b) = 64KByte.
 	 */
-	private static int KEY_TABLE_SIZE = 16513;//(128 << 7) + 128 + 1
+	private static int KEY_TABLE_SIZE = (128 << 7) + 128 + 1;
 	
 	/**
 	 * Each FFT data point consists of an imaginary byte and a real byte. The magnitude of the
@@ -43,8 +43,11 @@ public class PrecalcColorUtil {
 	 * Generate nearby colors for magnitude values between 0.0f and 1.0f (inclusive). The size of
 	 * this table is inversely related to the size of the approximation error. Lets arbitrarily
 	 * reuse the size of the other table for this one.
+	 * 
+	 * Size is 10% greater than KEY_TABLE_SIZE, just to avoid barely-over-1.0 magnitudes exceeding
+	 * the array.
 	 */
-	private static final int[] FFTMAGNITUDE_TO_COLOR_TABLE = new int[KEY_TABLE_SIZE + 1];
+	private static final int[] FFTMAGNITUDE_TO_COLOR_TABLE = new int[(int)(1.1 * KEY_TABLE_SIZE)];
 	
 	static {
 		final double maxCombinedVal = Math.sqrt(2 * (127 * 127));

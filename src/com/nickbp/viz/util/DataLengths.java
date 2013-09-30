@@ -42,23 +42,27 @@ public class DataLengths {
 	 * As such, this table has the same dimensions as {@link DataBuffers#valBuffer} and
 	 * {@link DataBuffers#timeSmoothedValBuffer}.
 	 */
-	public final float[] bufferPxWidth;
+	private float[] bufferPxWidth;
 	
 	private int viewLength = -1;
-	
-	/**
-	 * Creates an instance which expects raw FFT data of size equal to
-	 * {@link AudioSourceUtil#getMaxCaptureSize()}.
-	 */
-	public DataLengths() {
-		this(AudioSourceUtil.getMaxCaptureSize());
-	}
 
 	/**
 	 * Creates an instance which expects raw FFT data of size equal to {@code customFftSize}.
 	 */
-	public DataLengths(int customFftSize) {
-		bufferPxWidth = new float[AudioSourceUtil.getKeptDataSize(customFftSize)];
+	public DataLengths() {
+		bufferPxWidth = new float[1];
+	}
+	
+	public float[] getScaledLengths(int dataSize, int viewLength) {
+		if (dataSize != bufferPxWidth.length) {
+			bufferPxWidth = new float[dataSize];
+			updateViewScaling(bufferPxWidth, viewLength);
+			this.viewLength = viewLength;
+		} else if (viewLength != this.viewLength) {
+			updateViewScaling(bufferPxWidth, viewLength);
+			this.viewLength = viewLength;
+		}
+		return bufferPxWidth;
 	}
 	
 	/**
@@ -66,12 +70,9 @@ public class DataLengths {
 	 * precalculated display scaling.
 	 * @param viewLength The new display width, in pixels, to calculate against.
 	 */
-	public void updateViewScaling(int viewLength) {
-		if (this.viewLength == viewLength) {
-			return;
-		}
-
-		Log.v(TAG, "Updating scaling for length: " + viewLength);
+	private static void updateViewScaling(float[] bufferPxWidth, int viewLength) {
+		Log.v(TAG, "Updating scaling for viewLength=" + viewLength + ", dataLength=" +
+				bufferPxWidth.length);
         // Formula:
 		//   pxlen = (dataLen - dataI)^scale / dataLen^scale
         // Integrate over dataI from 0 to dataLen:
@@ -85,7 +86,5 @@ public class DataLengths {
         for (int i = 0; i < bufferLength; ++i) {
             bufferPxWidth[i] = (float)(Math.pow(bufferLength - i, VIEW_SCALING_BASS_EXAGGERATION) * multiplier);
         }
-		
-		this.viewLength = viewLength;
 	}
 }

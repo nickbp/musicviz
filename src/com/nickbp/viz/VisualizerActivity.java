@@ -16,6 +16,7 @@
 
 package com.nickbp.viz;
 
+import com.nickbp.viz.audio.AudioSourceSwitcher;
 import com.nickbp.viz.canvas.CanvasVisualizerView;
 import com.nickbp.viz.hider.SystemUiHider;
 
@@ -37,7 +38,7 @@ public class VisualizerActivity extends Activity {
     private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
     private static final int VIEWCHANGE_HIDE_DELAY_MILLIS = 100;
 
-    private final AudioSource audioSource = new AudioSource();
+    private final AudioSourceSwitcher sourceSwitcher = new AudioSourceSwitcher();
     private final Handler hideHandler = new Handler();
     private SystemUiHider systemUiHider;
     private CanvasVisualizerView vizView;
@@ -84,13 +85,13 @@ public class VisualizerActivity extends Activity {
     	super.onStart();
     	// Hide controls on startup/rotate
         delayedControls("onStart", false, VIEWCHANGE_HIDE_DELAY_MILLIS);
-        audioSource.start(vizView);
+        sourceSwitcher.start(vizView, vizView);
     }
     
     @Override
     protected void onStop() {
     	super.onStop();
-    	audioSource.stop();
+    	sourceSwitcher.stop();
     }
     
     @Override

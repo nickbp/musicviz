@@ -14,21 +14,24 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 
-package com.nickbp.viz.canvas;
+package com.nickbp.viz.util;
 
-import android.graphics.Canvas;
-
-import com.nickbp.viz.util.DataBuffers;
-
-public interface CanvasVisualizerImpl {
+public interface AudioSourceListener {
 	/**
-	 * Given the provided new {@code data}, renders the visualization's current state onto the
-	 * provided {@code canvas}.
+	 * Type used when the device output, such as music from a music player application, is the
+	 * active data source.
 	 */
-	public void render(DataBuffers data, Canvas canvas);
-
+	public static final int SOURCE_TYPE_PLAYER = 1;
+	
 	/**
-	 * Notifies the visualization that the display dimensions have changed.
+	 * Type used when the device microphone is the active data source.
 	 */
-	public void resize(int viewWidth, int viewHeight);
+	public static final int SOURCE_TYPE_MICROPHONE = 2;
+	
+	/**
+	 * Notifies that the source of audio data has changed.
+	 * 
+	 * @param sourceType source type, one of SOURCE_TYPE_PLAYER/MICROPHONE/NO_AUDIO
+	 */
+	public void onSourceSwitched(int sourceType);
 }

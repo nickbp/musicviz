@@ -37,18 +37,10 @@ public class DataBuffers {
 	public final float[] timeSmoothedValBuffer;
 	
 	/**
-	 * Creates a buffer instance which expects raw FFT data of size equal to
-	 * {@link AudioSourceUtil#getMaxCaptureSize()}.
-	 */
-	public DataBuffers() {
-		this(AudioSourceUtil.getMaxCaptureSize());
-	}
-	
-	/**
 	 * Creates a buffer instance which expects raw FFT data of size equal to {@code customFftSize}.
 	 */
 	public DataBuffers(int customFftSize) {
-		int keptDataSize = AudioSourceUtil.getKeptDataSize(customFftSize);
+		int keptDataSize = getKeptDataSize(customFftSize);
 		valBuffer = new float[keptDataSize];
 		timeSmoothedValBuffer = new float[keptDataSize];
 	}
@@ -89,5 +81,16 @@ public class DataBuffers {
 	        	timeSmoothedValBuffer[bufferi] - TIME_SMOOTHING_FALLOFF);
 		}
 		return valueFound;
+	}
+	
+	/**
+	 * Returns the number of values which will result from an FFT buffer of the provided size.
+	 */
+	public static int getKeptDataSize(int fftSize) {
+		// Skip the first two values, which are DC and Hz/2, respectively
+		// Non-'endcap' values are being given as real+imaginary pairs, which need to be recombined.
+		// eg 6 -> (4 / 2) -> 2 (or 6/2-1)
+		// eg 10 -> (8 / 2) -> 4 (or 10/2-1)
+		return fftSize / 2 - 1;
 	}
 }

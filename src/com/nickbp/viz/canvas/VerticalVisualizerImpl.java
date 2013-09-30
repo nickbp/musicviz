@@ -32,8 +32,10 @@ public class VerticalVisualizerImpl implements CanvasVisualizerImpl {
 	private static final int VOICEPRINT_PX_WIDTH = 5;
 
 	private final Paint fillPaint = new Paint();
+	private final DataLengths lengths = new DataLengths();
 	private int analyzerHeight;
 	private VerticalBitmapScroller voiceprintBitmapScroller;
+	private int viewWidth;
 
 	public VerticalVisualizerImpl() {
 		fillPaint.setAntiAlias(false);
@@ -44,23 +46,24 @@ public class VerticalVisualizerImpl implements CanvasVisualizerImpl {
 	 * Given the provided new {@code data}, renders the visualization's current state onto the
 	 * provided {@code canvas}.
 	 */
-	public void render(DataBuffers data, DataLengths lengths, Canvas canvas) {
+	public void render(DataBuffers data, Canvas canvas) {
 		//COORDINATE SYSTEM: 0,0 is TOP LEFT. SIZES ARE ALWAYS IN PX (no scaling/coord transforms)
         
 		fillPaint.setColor(Color.BLACK);
         canvas.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), fillPaint);
 
         float left = 0;
+		float bufferPxWidth[] = lengths.getScaledLengths(data.valBuffer.length, viewWidth);
 	    for (int datapt = 0; datapt < data.valBuffer.length; ++datapt) {
-	    	left = writePx(canvas, data, lengths, datapt, left);
+	    	left = writePx(canvas, data, bufferPxWidth, datapt, left);
 	    }
 
         voiceprintBitmapScroller.renderAndScroll(canvas);
 	}
 	
-	private float writePx(Canvas analyzerCanvas, DataBuffers data, DataLengths lengths,
+	private float writePx(Canvas analyzerCanvas, DataBuffers data, float bufferPxWidth[],
 			int datapt, float left) {
-		float right = left + lengths.bufferPxWidth[datapt];
+		float right = left + bufferPxWidth[datapt];
 
 		float analyzerVal = data.timeSmoothedValBuffer[datapt];
 		fillPaint.setColor(PrecalcColorUtil.magnitudeToColor(analyzerVal));
@@ -79,11 +82,11 @@ public class VerticalVisualizerImpl implements CanvasVisualizerImpl {
 	 * @return The data display width that should be used for future incoming data via
 	 * {@link #render(DataBuffers, Canvas)}.
 	 */
-	public int resize(int viewWidth, int viewHeight) {
+	public void resize(int viewWidth, int viewHeight) {
 		Log.d(TAG, "size changed: w=" + viewWidth + ", h=" + viewHeight);
         analyzerHeight = (int)(viewHeight * ANALYZER_HEIGHT_PCT);
         voiceprintBitmapScroller = new VerticalBitmapScroller(
         	viewWidth, viewHeight - analyzerHeight, analyzerHeight, VOICEPRINT_PX_WIDTH);
-		return viewWidth;
+        this.viewWidth = viewWidth;
 	}
 }

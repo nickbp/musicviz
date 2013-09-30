@@ -17,12 +17,12 @@
 package com.nickbp.viz.canvas;
 
 import com.nickbp.viz.R;
-import com.nickbp.viz.util.AudioSourceUtil;
+import com.nickbp.viz.util.AudioSourceListener;
 import com.nickbp.viz.util.DataBuffers;
-import com.nickbp.viz.util.DataLengths;
-import com.nickbp.viz.util.DataListener;
+import com.nickbp.viz.util.DataBufferListener;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -35,26 +35,18 @@ import android.view.View;
  * The {@link View} for a {@link HorizVisualizerImpl}.
  * Handles user interaction and forwarding audio data.
  */
-public class CanvasVisualizerView extends View implements DataListener {
+public class CanvasVisualizerView extends View implements DataBufferListener, AudioSourceListener {
 	private static final String TAG = "CanvasVisualizerView";
-	
-	/**
-	 * When empty audio data is being received, length of time to wait until displaying a "No Audio
-	 * Detected" message. The message is hidden once audio data comes back.
-	 */
-	private static final int SECONDS_BEFORE_NO_MUSIC_MESSAGE = 10;
-	private static final int TICKS_BEFORE_NO_MUSIC_MESSAGE =
-		SECONDS_BEFORE_NO_MUSIC_MESSAGE * (AudioSourceUtil.getMaxCaptureRateMilliHz() / 1000);
-	
-	private final DataBuffers data = new DataBuffers();
-	private final DataLengths lengths = new DataLengths();
+
 	private final VisualizerSwapper vizSwapper = new VisualizerSwapper();
 	
-	// Fuzz factor: Avoid showing "no data" message when data's just not fully set up.
-	private int ticksSinceDataLastFound = TICKS_BEFORE_NO_MUSIC_MESSAGE - 10;
+	private DataBuffers data;
+	private int currentDataSource;
+	private int sourceTextAlpha = 0;
 	
 	public CanvasVisualizerView(Context context) {
 		super(context);
+		setKeepScreenOn(true);
 	}
 	
 	/**
@@ -68,7 +60,7 @@ public class CanvasVisualizerView extends View implements DataListener {
         setOnClickListener(new View.OnClickListener() {
     		@Override
     		public void onClick(View v) {
-    			vizSwapper.swap(lengths);
+    			vizSwapper.swap();
     			callOnInteraction.run();
     		}
 		});
@@ -76,7 +68,7 @@ public class CanvasVisualizerView extends View implements DataListener {
 			@Override
 			public boolean onTouch(View v, MotionEvent event) {
 				if (event.getAction() == MotionEvent.ACTION_UP) {
-	    			vizSwapper.swap(lengths);
+	    			vizSwapper.swap();
 	    			callOnInteraction.run();
 					return true;
 				} else {
@@ -88,42 +80,58 @@ public class CanvasVisualizerView extends View implements DataListener {
 	}
 
 	@Override
-	public boolean onReceive(final byte[] fft) {
-		boolean dataFound = data.updateData(fft);
-		if (dataFound) {
-			if (ticksSinceDataLastFound != 0) {
-				ticksSinceDataLastFound = 0;
-				Log.d(TAG, "Enabling keep screen on");
-				setKeepScreenOn(true);
-			}
+	public void onReceive(DataBuffers buffers, boolean otherThread) {
+		data = buffers;
+		if (otherThread) {
+			postInvalidate();
 		} else {
-			++ticksSinceDataLastFound;
-		}
-		invalidate();
-		return dataFound;
-	}
-	
-	@Override
-	public void onDraw(Canvas canvas) {
-		super.onDraw(canvas);
-		vizSwapper.render(data, lengths, canvas);
-		if (ticksSinceDataLastFound >= TICKS_BEFORE_NO_MUSIC_MESSAGE) {
-			renderNoAudioText(canvas);
-			if (ticksSinceDataLastFound == TICKS_BEFORE_NO_MUSIC_MESSAGE) {
-				Log.d(TAG, "Disabling keep screen on");
-				setKeepScreenOn(false);
-			}
+			invalidate();
 		}
 	}
 	
 	@Override
 	public void onSizeChanged(int w, int h, int oldw, int oldh) {
-		vizSwapper.updateSize(lengths, w, h);
+		vizSwapper.updateSize(w, h);
+	}
+
+	@Override
+	public void onSourceSwitched(int sourceType) {
+		Log.d(TAG, "Data source switched to " + sourceType);
+		currentDataSource = sourceType;
+		sourceTextAlpha = 512;// leave text at full-alpha for a bit before fading
 	}
 	
-	private void renderNoAudioText(Canvas canvas) {
-		// Blatant use of arbitrary constants that look nice...
-		String header = getResources().getText(R.string.no_audio_header).toString();
+	@Override
+	public void onDraw(Canvas canvas) {
+		super.onDraw(canvas);
+		if (data == null) {
+			return;
+		}
+		vizSwapper.render(data, canvas);
+		if (sourceTextAlpha > 0) {
+			sourceTextAlpha = renderSourceText(canvas, getResources(), currentDataSource,
+					sourceTextAlpha > 255 ? 255 : sourceTextAlpha);
+		}
+	}
+	
+	private static int renderSourceText(Canvas canvas, Resources resources, int source, int alpha) {
+		int headerId, messageId;
+		switch (source) {
+		case AudioSourceListener.SOURCE_TYPE_PLAYER:
+			headerId = R.string.player_input_header;
+			messageId = R.string.player_input_message;
+			break;
+		case AudioSourceListener.SOURCE_TYPE_MICROPHONE:
+			headerId = R.string.microphone_input_header;
+			messageId = R.string.microphone_input_message;
+			break;
+		default:
+			throw new IllegalArgumentException("Unknown source id: " + source);
+		}
+		
+		// Blatant use of arbitrary size constants that look nice...
+		//TODO fix (ideally fix properly): new strings overhang edges in portrait 
+		
 		Paint p = new Paint();
 		p.setColor(Color.WHITE);
 		p.setTextAlign(Paint.Align.CENTER);
@@ -131,6 +139,9 @@ public class CanvasVisualizerView extends View implements DataListener {
 		p.setShadowLayer(5, 0, 0, Color.BLACK);
 		p.setSubpixelText(true);
 		p.setAntiAlias(true);
+		p.setAlpha(alpha);
+
+		String header = resources.getText(headerId).toString();
 		canvas.drawText(header, canvas.getWidth() / 2, canvas.getHeight() / 2, p);
 		
 		Rect headerBounds = new Rect();
@@ -138,9 +149,15 @@ public class CanvasVisualizerView extends View implements DataListener {
 		
 		p.setColor(Color.GRAY);
 		p.setTextSize(p.getTextSize() / 3);
-		String message = getResources().getText(R.string.no_audio_message).toString();
-		canvas.drawText(message,
-				canvas.getWidth() / 2, canvas.getHeight() / 2 + headerBounds.height(), p);
+		p.setAlpha(alpha);
+		
+		String message = resources.getText(messageId).toString();
+		if (!message.isEmpty()) {
+			canvas.drawText(message,
+					canvas.getWidth() / 2, canvas.getHeight() / 2 + headerBounds.height(), p);
+		}
+		
+		return alpha - 5;
 	}
 	
 	private static class VisualizerSwapper {
@@ -157,19 +174,18 @@ public class CanvasVisualizerView extends View implements DataListener {
 			}
 		}
 		
-		public void render(DataBuffers data, DataLengths lengths, Canvas canvas) {
-			viz.render(data, lengths, canvas);
+		public void render(DataBuffers data, Canvas canvas) {
+			viz.render(data, canvas);
 		}
 		
-		public void updateSize(DataLengths lengths, int w, int h) {
+		public void updateSize(int w, int h) {
 			curWidth = w;
 			curHeight = h;
 			Log.d(TAG, "resize to w=" + curWidth + " h=" + curHeight);
-			int viewLength = viz.resize(curWidth, curHeight);
-			lengths.updateViewScaling(viewLength);
+			viz.resize(curWidth, curHeight);
 		}
 		
-		public void swap(DataLengths lengths) {
+		public void swap() {
 			isHoriz = !isHoriz;
 			Log.d(TAG, "set horiz=" + isHoriz);
 			if (isHoriz) {
@@ -177,7 +193,7 @@ public class CanvasVisualizerView extends View implements DataListener {
 			} else {
 				viz = new VerticalVisualizerImpl();
 			}
-			updateSize(lengths, curWidth, curHeight);
+			viz.resize(curWidth, curHeight);
 		}
 	}
 }

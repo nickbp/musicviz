@@ -16,10 +16,11 @@
 
 package com.nickbp.viz.util;
 
-public interface DataListener {
+public interface DataBufferListener {
 	/**
-	 * Accepts raw FFT data as produced by a {@link Visualizer}. Returns {@code true} if the data
-	 * was found to be non-zero, {@code false} otherwise.
+	 * Accepts preprocessed FFT data contained in a {@link DataBuffers} instance.
+	 * 
+	 * @param otherThread whether this input is coming from a non-UI thread
 	 */
-	public boolean onReceive(byte[] fft);
+	public void onReceive(DataBuffers buffers, boolean otherThread);
 }

@@ -32,9 +32,11 @@ public class HorizVisualizerImpl implements CanvasVisualizerImpl {
 	private static final int VOICEPRINT_PX_WIDTH = 5;
 
 	private final Paint fillPaint = new Paint();
+	private final DataLengths lengths = new DataLengths();
 	private int analyzerWidth;
 	private int analyzerLeft;
 	private HorizBitmapScroller voiceprintBitmapScroller;
+	private int viewHeight;
 
 	public HorizVisualizerImpl() {
 		fillPaint.setAntiAlias(false);
@@ -45,23 +47,24 @@ public class HorizVisualizerImpl implements CanvasVisualizerImpl {
 	 * Given the provided new {@code data}, renders the visualization's current state onto the
 	 * provided {@code canvas}.
 	 */
-	public void render(DataBuffers data, DataLengths lengths, Canvas canvas) {
+	public void render(DataBuffers data, Canvas canvas) {
 		//COORDINATE SYSTEM: 0,0 is TOP LEFT. SIZES ARE ALWAYS IN PX (no scaling/coord transforms)
         
 		fillPaint.setColor(Color.BLACK);
         canvas.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), fillPaint);
 
         float bottom = canvas.getHeight();
+		float bufferPxWidth[] = lengths.getScaledLengths(data.valBuffer.length, viewHeight);
 	    for (int datapt = 0; datapt < data.valBuffer.length; ++datapt) {
-		    bottom = writePx(canvas, data, lengths, datapt, bottom);
+		    bottom = writePx(canvas, data, bufferPxWidth, datapt, bottom);
 	    }
 
         voiceprintBitmapScroller.renderAndScroll(canvas);
 	}
 	
-	private float writePx(Canvas analyzerCanvas, DataBuffers data, DataLengths lengths,
+	private float writePx(Canvas analyzerCanvas, DataBuffers data, float bufferPxWidth[],
 			int datapt, float bottom) {
-		float top = bottom - lengths.bufferPxWidth[datapt];
+		float top = bottom - bufferPxWidth[datapt];
 		
 		float analyzerVal = data.timeSmoothedValBuffer[datapt];
 		fillPaint.setColor(PrecalcColorUtil.magnitudeToColor(analyzerVal));
@@ -80,12 +83,12 @@ public class HorizVisualizerImpl implements CanvasVisualizerImpl {
 	 * @return The data display width that should be used for future incoming data via
 	 * {@link #render(DataBuffers, Canvas)}.
 	 */
-	public int resize(int viewWidth, int viewHeight) {
+	public void resize(int viewWidth, int viewHeight) {
 		Log.d(TAG, "size changed: w=" + viewWidth + ", h=" + viewHeight);
         analyzerWidth = (int)(viewWidth * ANALYZER_WIDTH_PCT);
         analyzerLeft = viewWidth - analyzerWidth;
         voiceprintBitmapScroller =
         	new HorizBitmapScroller(analyzerLeft, viewHeight, VOICEPRINT_PX_WIDTH);
-		return viewHeight;
+		this.viewHeight = viewHeight;
 	}
 }
