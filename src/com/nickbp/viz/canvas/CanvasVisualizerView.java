@@ -16,6 +16,9 @@
 
 package com.nickbp.viz.canvas;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.nickbp.viz.R;
 import com.nickbp.viz.util.AudioSourceListener;
 import com.nickbp.viz.util.DataBuffers;
@@ -130,34 +133,101 @@ public class CanvasVisualizerView extends View implements DataBufferListener, Au
 		}
 		
 		// Blatant use of arbitrary size constants that look nice...
-		//TODO fix (ideally fix properly): new strings overhang edges in portrait 
 		
+		int maxTextWidth = (int)(canvas.getWidth() * .7);
+		int maxTextHeight = (int)(canvas.getHeight() * .5);
+
 		Paint p = new Paint();
-		p.setColor(Color.WHITE);
+		
+		String header = resources.getText(headerId).toString();
 		p.setTextAlign(Paint.Align.CENTER);
-		p.setTextSize(Math.min(canvas.getHeight(), canvas.getWidth()) / 10);
 		p.setShadowLayer(5, 0, 0, Color.BLACK);
 		p.setSubpixelText(true);
 		p.setAntiAlias(true);
-		p.setAlpha(alpha);
-
-		String header = resources.getText(headerId).toString();
-		canvas.drawText(header, canvas.getWidth() / 2, canvas.getHeight() / 2, p);
+		p.setColor(Color.WHITE);
+		p.setAlpha(alpha);// must be set after assigning color
 		
+		setTextSizeToFit(p, header, maxTextWidth, maxTextHeight);
+
+		String message = resources.getText(messageId).toString();
+		
+		float centerX = canvas.getWidth() / 2;
+		float centerY = canvas.getHeight() / 2;
 		Rect headerBounds = new Rect();
 		p.getTextBounds(header, 0, header.length(), headerBounds);
 		
-		p.setColor(Color.GRAY);
-		p.setTextSize(p.getTextSize() / 3);
-		p.setAlpha(alpha);
+		if (message.isEmpty()) {
+			// Draw header exactly at center point
+			canvas.drawText(header, centerX, centerY + (headerBounds.height() / 2), p);
+		} else {
+			// Draw header slightly above center point
+			canvas.drawText(header, centerX, centerY, p);
+			
+			p.setColor(Color.GRAY);
+			p.setAlpha(alpha);// must be (re)set after assigning color
+			
+			// Go with a 2:1 size ratio, or shrink if the string is too long to fit at that size
+			float preferredTextSize = p.getTextSize() / 2;
+			setTextSizeToFit(p, message, maxTextWidth, maxTextHeight);
+			p.setTextSize(Math.min(p.getTextSize(), preferredTextSize));
+
+			canvas.drawText(message, centerX, centerY + headerBounds.height(), p);
+		}
+
+		return alpha - 5;
+	}
+
+	private static class TextSizeKey {
+		private final String s;
+		private final int width, height;
 		
-		String message = resources.getText(messageId).toString();
-		if (!message.isEmpty()) {
-			canvas.drawText(message,
-					canvas.getWidth() / 2, canvas.getHeight() / 2 + headerBounds.height(), p);
+		private TextSizeKey(String s, int width, int height) {
+			this.s = s;
+			this.width = width;
+			this.height = height;
 		}
 		
-		return alpha - 5;
+		@Override
+		public boolean equals(Object o) {
+			if (o instanceof TextSizeKey) {
+				TextSizeKey k = (TextSizeKey)o;
+				return k.s.equals(this.s) && k.width == this.width && k.height == this.height;
+			}
+			return false;
+		}
+		
+		@Override
+		public int hashCode() {
+			return width; 
+		}
+	}
+	
+	private static final Map<TextSizeKey, Float> textSizeCache = new HashMap<TextSizeKey, Float>();
+	private static void setTextSizeToFit(Paint p, String s, int width, int height) {
+		TextSizeKey key = new TextSizeKey(s, width, height);
+		Float val = textSizeCache.get(key);
+		if (val != null) {
+			p.setTextSize(val);
+			return;
+		}
+		
+		Rect bounds = new Rect();
+		
+		// Grow until one dimension exceeds limit
+		float size = 1;
+		do {
+			size *= 2;
+			p.setTextSize(size);
+			p.getTextBounds(s, 0, s.length(), bounds);
+		} while (bounds.width() < width && bounds.height() < height);
+		
+		// Shrink until both dimensions fit limit
+		do {
+			p.setTextSize(size--);
+			p.getTextBounds(s, 0, s.length(), bounds);
+		} while (bounds.width() > width || bounds.height() > height);
+		
+		textSizeCache.put(key, p.getTextSize()); 
 	}
 	
 	private static class VisualizerSwapper {

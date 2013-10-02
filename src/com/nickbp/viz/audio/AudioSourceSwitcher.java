@@ -22,10 +22,16 @@ import com.nickbp.viz.util.AudioSourceListener;
 
 public class AudioSourceSwitcher {
 	/**
-	 * When empty audio data is being received, length of time to wait falling back from player data
-	 * to microphone data. We immediately switch back to player data once it's observed non-zero.
+	 * When empty data is being received, length of time to wait until switching to mic.
+	 * This is relatively large to avoid switching away from audio when it's just quiet for a bit.
 	 */
-	private static final int SECONDS_BEFORE_MIC_FALLBACK = 10;
+	private static final int SECONDS_BEFORE_MIC_START = 5;
+	/**
+	 * When non-empty data is being received, length of time to wait until switching to player.
+	 * We want to switch fairly quickly when the user has started music, but we don't want to switch
+	 * just because eg a notification sound occurred. 
+	 */
+	private static final int SECONDS_BEFORE_MIC_STOP = 3;
 	
     private final PlayerAudioSource playerDataSource = new PlayerAudioSource();
     private final AudioSource micDataSource = new MicrophoneAudioSource();
@@ -50,41 +56,62 @@ public class AudioSourceSwitcher {
 	}
 	
 	private class FallbackSwitcher {
-	    private boolean playerOutputEnabled;
-    	private final int playerDataTicksBeforeMicFallback;
-    	private int ticksSincePlayerData;
+    	private final int playerDataTicksBeforeMicStart;
+    	private final int playerDataTicksBeforeMicStop;
 	    private final AudioSourceListener sourceListener;
 	    
+	    private boolean usingPlayerOutput;
+    	private int ticksSinceSwitchingSources;
+	    
 	    public FallbackSwitcher(AudioSourceListener sourceListener) {
-	    	playerOutputEnabled = true;
-	    	playerDataTicksBeforeMicFallback =
-	    			SECONDS_BEFORE_MIC_FALLBACK * playerDataSource.getDataRefreshRateHz();
-	    	// Fuzz factor: Avoid switching inputs when data stream may still be initializing.
-	    	ticksSincePlayerData = playerDataTicksBeforeMicFallback - 10;
-
-	    	this.sourceListener = sourceListener; 
+	    	playerDataTicksBeforeMicStart =
+	    			SECONDS_BEFORE_MIC_START * playerDataSource.getDataRefreshRateHz();
+	    	playerDataTicksBeforeMicStop =
+	    			SECONDS_BEFORE_MIC_STOP * playerDataSource.getDataRefreshRateHz();
+	    	this.sourceListener = sourceListener;
+	    	
+	    	usingPlayerOutput = true;
+	    	// Start with a fuzz factor:
+	    	//   Give player stream some time to init, before immediately switching to mic data.
+	    	ticksSinceSwitchingSources = playerDataTicksBeforeMicStart - 10;
 	    }
 	    
 	    public void handleFilledData() {
-			if (ticksSincePlayerData != 0) {
-				ticksSincePlayerData = 0;
-				micDataSource.stop();
-				sourceListener.onSourceSwitched(AudioSourceListener.SOURCE_TYPE_PLAYER);
-				playerOutputEnabled = true;
-			}
+	    	if (!usingPlayerOutput) {
+	    		// Not using player, but it's producing audio!
+	    		++ticksSinceSwitchingSources;
+	    		if (ticksSinceSwitchingSources == playerDataTicksBeforeMicStop) {
+	    			// Player's been active long enough, switch to it.
+					micDataSource.stop();
+					sourceListener.onSourceSwitched(AudioSourceListener.SOURCE_TYPE_PLAYER);
+					usingPlayerOutput = true;
+					ticksSinceSwitchingSources = 0;
+	    		}
+	    	} else {
+	    		// Reset any past increments from brief player activity
+	    		ticksSinceSwitchingSources = 0;
+	    	}
 	    }
 	    
 	    public void handleEmptyData() {
-			++ticksSincePlayerData;
-			if (ticksSincePlayerData == playerDataTicksBeforeMicFallback) {
-				playerOutputEnabled = false;
-				micDataSource.start(micDataListener);
-				sourceListener.onSourceSwitched(AudioSourceListener.SOURCE_TYPE_MICROPHONE);
-			}
+	    	if (usingPlayerOutput) {
+	    		// Using player, but it's not producing any audio!
+	    		++ticksSinceSwitchingSources;
+	    		if (ticksSinceSwitchingSources == playerDataTicksBeforeMicStart) {
+	    			// We've waited long enough, switch to mic.
+					micDataSource.start(micDataListener);
+					sourceListener.onSourceSwitched(AudioSourceListener.SOURCE_TYPE_MICROPHONE);
+					usingPlayerOutput = false;
+					ticksSinceSwitchingSources = 0;
+	    		}
+	    	} else {
+	    		// Reset any past increments from brief player inactivity
+	    		ticksSinceSwitchingSources = 0;
+	    	}
 	    }
 	    
 	    public boolean isPlayerOutputEnabled() {
-	    	return playerOutputEnabled;
+	    	return usingPlayerOutput;
 	    }
 	}
     
