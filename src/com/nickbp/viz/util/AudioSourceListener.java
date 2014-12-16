@@ -17,21 +17,21 @@
 package com.nickbp.viz.util;
 
 public interface AudioSourceListener {
-	/**
-	 * Type used when the device output, such as music from a music player application, is the
-	 * active data source.
-	 */
-	public static final int SOURCE_TYPE_PLAYER = 1;
-	
-	/**
-	 * Type used when the device microphone is the active data source.
-	 */
-	public static final int SOURCE_TYPE_MICROPHONE = 2;
-	
-	/**
-	 * Notifies that the source of audio data has changed.
-	 * 
-	 * @param sourceType source type, one of SOURCE_TYPE_PLAYER/MICROPHONE/NO_AUDIO
-	 */
-	public void onSourceSwitched(int sourceType);
+    /**
+     * Type used when the device output, such as music from a music player application, is the
+     * active data source.
+     */
+    public static final int SOURCE_TYPE_PLAYER = 1;
+
+    /**
+     * Type used when the device microphone is the active data source.
+     */
+    public static final int SOURCE_TYPE_MICROPHONE = 2;
+
+    /**
+     * Notifies that the source of audio data has changed.
+     *
+     * @param sourceType source type, one of SOURCE_TYPE_PLAYER/MICROPHONE/NO_AUDIO
+     */
+    public void onSourceSwitched(int sourceType);
 }

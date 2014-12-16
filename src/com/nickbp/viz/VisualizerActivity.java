@@ -34,7 +34,7 @@ import android.view.WindowManager;
  */
 public class VisualizerActivity extends Activity {
     private static final String TAG = "VisualizerActivity";
-    
+
     private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
     private static final int VIEWCHANGE_HIDE_DELAY_MILLIS = 100;
 
@@ -46,54 +46,55 @@ public class VisualizerActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-    	Log.d(TAG, "onCreate");
-    	
-    	setVolumeControlStream(AudioManager.STREAM_MUSIC);
-    	
-    	vizView = new CanvasVisualizerView(this);
-    	vizView.setInteractionListeners(new Runnable() {
-			@Override
-			public void run() {
-				// When someone touches within the app view, also notify our hider.
-				if (systemUiHider.isVisible()) {
-					delayedControls("interactionListener", false, VIEWCHANGE_HIDE_DELAY_MILLIS);
-				}
-			}
-	    });
-		setContentView(vizView);
-	
-	    // Set up an instance of SystemUiHider to control the system UI for this activity.
-	    systemUiHider =
-	    		SystemUiHider.getInstance(this, vizView, SystemUiHider.FLAG_HIDE_NAVIGATION);
-	    systemUiHider.setup();
-	    systemUiHider.setOnVisibilityChangeListener(
-	    		new SystemUiHider.OnVisibilityChangeListener() {
-	                @Override
-	                @TargetApi(Build.VERSION_CODES.HONEYCOMB_MR2)
-	                public void onVisibilityChange(boolean visible) {
-	                    // Ensure everything's visible now, then schedule a hide.
-                    	if (visible && !systemUiHider.isVisible()) {
-                    		delayedControls("onVisibilityChange", true, 0);
-                    		delayedControls("onVisibilityChange", false, AUTO_HIDE_DELAY_MILLIS);
-	                    }
-	                }
-	            });
+        Log.d(TAG, "onCreate");
+
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
+
+        vizView = new CanvasVisualizerView(this);
+        vizView.setInteractionListeners(
+            new Runnable() {
+                @Override
+                public void run() {
+                    // When someone touches within the app view, also notify our hider.
+                    if (systemUiHider.isVisible()) {
+                        delayedControls("interactionListener", false, VIEWCHANGE_HIDE_DELAY_MILLIS);
+                    }
+                }
+            });
+        setContentView(vizView);
+
+        // Set up an instance of SystemUiHider to control the system UI for this activity.
+        systemUiHider =
+            SystemUiHider.getInstance(this, vizView, SystemUiHider.FLAG_HIDE_NAVIGATION);
+        systemUiHider.setup();
+        systemUiHider.setOnVisibilityChangeListener(
+            new SystemUiHider.OnVisibilityChangeListener() {
+                @Override
+                @TargetApi(Build.VERSION_CODES.HONEYCOMB_MR2)
+                public void onVisibilityChange(boolean visible) {
+                    // Ensure everything's visible now, then schedule a hide.
+                    if (visible && !systemUiHider.isVisible()) {
+                        delayedControls("onVisibilityChange", true, 0);
+                        delayedControls("onVisibilityChange", false, AUTO_HIDE_DELAY_MILLIS);
+                    }
+                }
+            });
     }
-    
+
     @Override
     protected void onStart() {
-    	super.onStart();
-    	// Hide controls on startup/rotate
+        super.onStart();
+        // Hide controls on startup/rotate
         delayedControls("onStart", false, VIEWCHANGE_HIDE_DELAY_MILLIS);
         sourceSwitcher.start(vizView, vizView);
     }
-    
+
     @Override
     protected void onStop() {
-    	super.onStop();
-    	sourceSwitcher.stop();
+        super.onStop();
+        sourceSwitcher.stop();
     }
-    
+
     @Override
     protected void onPostCreate(Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
@@ -110,20 +111,21 @@ public class VisualizerActivity extends Activity {
      * to avoid jerky control showing/hiding due to multiple conflicting simultaneous messages.
      */
     private void delayedControls(final String source, final boolean show, int delayMillis) {
-    	Log.v(TAG, "controls (" + source + "): delayMs=" + delayMillis + ", show=" + show);
-    	Runnable hideRunnable = new Runnable() {
-            @Override
-            public void run() {
-        		Log.v(TAG, "controls (" + source + "): show=" + show);
-            	if (show) {
-                	systemUiHider.show();
-            		getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            	} else {
-                	systemUiHider.hide();
-            		getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            	}
-            }
-        };
+        Log.v(TAG, "controls (" + source + "): delayMs=" + delayMillis + ", show=" + show);
+        Runnable hideRunnable =
+            new Runnable() {
+                @Override
+                public void run() {
+                    Log.v(TAG, "controls (" + source + "): show=" + show);
+                    if (show) {
+                        systemUiHider.show();
+                        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                    } else {
+                        systemUiHider.hide();
+                        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                    }
+                }
+            };
         hideHandler.removeCallbacks(hideRunnable);
         hideHandler.postDelayed(hideRunnable, delayMillis);
     }

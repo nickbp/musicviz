@@ -21,14 +21,14 @@ import android.graphics.Canvas;
 import com.nickbp.viz.util.DataBuffers;
 
 public interface CanvasVisualizerImpl {
-	/**
-	 * Given the provided new {@code data}, renders the visualization's current state onto the
-	 * provided {@code canvas}.
-	 */
-	public void render(DataBuffers data, Canvas canvas);
+    /**
+     * Given the provided new {@code data}, renders the visualization's current state onto the
+     * provided {@code canvas}.
+     */
+    public void render(DataBuffers data, Canvas canvas);
 
-	/**
-	 * Notifies the visualization that the display dimensions have changed.
-	 */
-	public void resize(int viewWidth, int viewHeight);
+    /**
+     * Notifies the visualization that the display dimensions have changed.
+     */
+    public void resize(int viewWidth, int viewHeight);
 }

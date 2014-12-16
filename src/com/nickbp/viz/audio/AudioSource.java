@@ -20,29 +20,29 @@ package com.nickbp.viz.audio;
  * Produces audio spectrum data from the device, suitable for use by visualizations.
  */
 public interface AudioSource {
-	public interface RawDataListener {
-		/**
-		 * Accepts raw FFT data as would be produced by a {@link Visualizer} instance.
-		 */
-		public void onReceive(byte[] fft);
-	}
-	
-	/**
-	 * Starts capturing and retrieving audio data, forwarding it to the provided
-	 * {@link RawDataListener}, or does nothing if recording is already started.
-	 * Returns immediately once retrieval is set up.
-	 * 
-	 * @throws IllegalStateException if audio capture couldn't be enabled
-	 */
-	public void start(RawDataListener out);
-	
-	/**
-	 * Stops retrieving audio data, or does nothing if retrieval is already stopped.
-	 */
-	public void stop();
-	
-	/**
-	 * Returns the size of the output data that this instance will pass to {@link RawDataListener}s.
-	 */
-	public int getOutputSize();
+    public interface RawDataListener {
+        /**
+         * Accepts raw FFT data as would be produced by a {@link Visualizer} instance.
+         */
+        public void onReceive(byte[] fft);
+    }
+
+    /**
+     * Starts capturing and retrieving audio data, forwarding it to the provided
+     * {@link RawDataListener}, or does nothing if recording is already started.
+     * Returns immediately once retrieval is set up.
+     *
+     * @throws IllegalStateException if audio capture couldn't be enabled
+     */
+    public void start(RawDataListener out);
+
+    /**
+     * Stops retrieving audio data, or does nothing if retrieval is already stopped.
+     */
+    public void stop();
+
+    /**
+     * Returns the size of the output data that this instance will pass to {@link RawDataListener}s.
+     */
+    public int getOutputSize();
 }

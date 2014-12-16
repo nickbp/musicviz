@@ -17,10 +17,10 @@
 package com.nickbp.viz.util;
 
 public interface DataBufferListener {
-	/**
-	 * Accepts preprocessed FFT data contained in a {@link DataBuffers} instance.
-	 * 
-	 * @param otherThread whether this input is coming from a non-UI thread
-	 */
-	public void onReceive(DataBuffers buffers, boolean otherThread);
+    /**
+     * Accepts preprocessed FFT data contained in a {@link DataBuffers} instance.
+     *
+     * @param otherThread whether this input is coming from a non-UI thread
+     */
+    public void onReceive(DataBuffers buffers, boolean otherThread);
 }
